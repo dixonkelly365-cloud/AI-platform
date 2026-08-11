@@ -1,0 +1,103 @@
+name: Auto-generate and post video
+
+on:
+  schedule:
+    # Runs every day at 14:00 UTC. Change the cron expression to adjust timing/frequency.
+    - cron: '0 14 * * *'
+  workflow_dispatch: {}   # lets you also trigger it manually from the GitHub Actions tab
+
+jobs:
+  make-and-post-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write   # needed to commit topic history, and by the Instagram media-hosting step
+    env:
+      HAS_YOUTUBE: ${{ secrets.YOUTUBE_REFRESH_TOKEN != '' }}
+      HAS_INSTAGRAM: ${{ secrets.IG_ACCESS_TOKEN != '' }}
+      HAS_GEMINI: ${{ secrets.GEMINI_API_KEY != '' }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate history story (unlimited unique topics, via Google's free Gemini API — no card needed)
+        if: ${{ env.HAS_GEMINI == 'true' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node src/generateStory.js
+
+      - name: Generate history story (free 6-story rotation — fallback used only if GEMINI_API_KEY isn't set)
+        if: ${{ env.HAS_GEMINI != 'true' }}
+        run: node src/generateStoryFree.js
+
+      - name: Fetch real photos (Ken Burns effect, A/B split)
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: node src/fetchStockPhotos.js
+
+      - name: Generate narration (single narrator voice)
+        run: node src/tts.js
+
+      - name: Assemble final video
+        run: node src/assembleVideo.js
+
+      - name: Upload to YouTube
+        if: ${{ env.HAS_YOUTUBE == 'true' }}
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REDIRECT_URI: ${{ secrets.YOUTUBE_REDIRECT_URI }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          PRIVACY_STATUS: public
+        run: node src/uploadYoutube.js
+
+      - name: Commit topic history so tomorrow's video never repeats today's
+        run: |
+          git config user.name "auto-video-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add output-state/history-topics.json
+          git diff --staged --quiet || git commit -m "auto: record covered topic"
+          git push
+
+      - name: Host video publicly for Instagram (Instagram fetches from a URL, it doesn't accept a direct upload)
+        id: host_video
+        if: ${{ env.HAS_INSTAGRAM == 'true' }}
+        run: |
+          git config user.name "auto-video-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan media-tmp
+          git rm -rf . > /dev/null 2>&1 || true
+          cp output/final_video.mp4 ./video.mp4
+          git add video.mp4
+          git commit -m "auto: video for Instagram fetch"
+          git push origin media-tmp:media --force
+          echo "url=https://raw.githubusercontent.com/${{ github.repository }}/media/video.mp4" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Instagram
+        if: ${{ env.HAS_INSTAGRAM == 'true' }}
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_BUSINESS_ACCOUNT_ID: ${{ secrets.IG_BUSINESS_ACCOUNT_ID }}
+          IG_PUBLIC_VIDEO_URL: ${{ steps.host_video.outputs.url }}
+        run: node src/uploadInstagram.js
+
+      - name: Save as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-video
+          path: output/final_video.mp4
+          retention-days: 7
+

@@ -1,0 +1,22 @@
+{
+  "name": "ai-video-pipeline",
+  "version": "1.0.0",
+  "description": "Generates a real-story storyboard, fetches matching real photos, applies a Ken Burns effect, narrates it, adds music/color grading, and posts to YouTube/Instagram.",
+  "type": "module",
+  "scripts": {
+    "generate": "node src/generateStory.js",
+    "fetch-photos": "node src/fetchStockPhotos.js",
+    "narrate": "node src/tts.js",
+    "assemble": "node src/assembleVideo.js",
+    "upload": "node src/uploadYoutube.js",
+    "upload:ig": "node src/uploadInstagram.js",
+    "auth": "node src/authYoutube.js",
+    "pipeline": "node src/pipeline.js"
+  },
+  "dependencies": {
+    "msedge-tts": "^2.0.7",
+    "googleapis": "^144.0.0",
+    "dotenv": "^16.4.5",
+    "open": "^10.1.0"
+  }
+}

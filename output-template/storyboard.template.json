@@ -1,0 +1,26 @@
+{
+  "_instructions": "This is a SCHEMA REFERENCE, not a required manual step — generateStoryFree.js and generateStory.js both write output/storyboard.json in this format automatically. Only useful if you want to hand-write or edit a storyboard yourself. Delete this _instructions field if you use this file directly.",
+  "title": "Example: The Invention of the Compass",
+  "theme": "compass-invention",
+  "hook": "A rock that pointed north changed how humans explored the world.",
+  "scenes": [
+    {
+      "id": "scene1",
+      "narration": "A rock that pointed north changed how humans explored the world.",
+      "duration_seconds": 6,
+      "stockQuery": "old compass antique"
+    },
+    {
+      "id": "scene2",
+      "narration": "Ancient Chinese navigators discovered lodestone always pointed the same direction.",
+      "duration_seconds": 6,
+      "stockQuery": "ancient chinese artifact"
+    },
+    {
+      "id": "outro",
+      "narration": "History is full of stories like this. Follow for more.",
+      "duration_seconds": 4,
+      "stockQuery": "old books library"
+    }
+  ]
+}
